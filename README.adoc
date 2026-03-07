@@ -18,8 +18,6 @@ From any regular ComfyUI Docker Image found on the net.
 
 Just run '3dmax.sh` to see command-line instructions.  Everything is automated.  If you need help, add the `-h` or `--help` switch to the script.  I try to make this easy to understand.  I am personally tired of AI sloptext, so trying to avoid that in this project!
 
-|===
-
 ## Credits
 
 Credit: heavily modified from YanWenKun's cu130-megapak image: https://github.com/YanWenKun/ComfyUI-Docker
