@@ -146,7 +146,7 @@ docker compose up --build
 6. **Security labels**: Disable SELinux labels for NVIDIA containers
 7. **Python packages**: Most packages installed via pip; use Ubuntu system packages for OpenCV and base tools only
 ## Important Notes
-- This is a yawnk **cu130-megapak** variant: includes 40+ custom nodes and CUDA dev kit
+- This is a yawnk **cu128-megapak** variant: includes 40+ custom nodes and CUDA dev kit
 - Image size is large (~15GB+) due to full development environment
 - Updates are slower than slim images due to wheel compilation requirements
 - Container runs as root for NVIDIA GPU access compatibility

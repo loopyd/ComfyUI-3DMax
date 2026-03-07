@@ -20,4 +20,4 @@ Just run '3dmax.sh` to see command-line instructions.  Everything is automated. 
 
 ## Credits
 
-Credit: heavily modified from YanWenKun's cu130-megapak image: https://github.com/YanWenKun/ComfyUI-Docker
+Credit: heavily modified from YanWenKun's cu128-megapak image: https://github.com/YanWenKun/ComfyUI-Docker
