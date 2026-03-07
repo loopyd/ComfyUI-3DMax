@@ -29,10 +29,6 @@ services:
       - "./storage-user/output:/root/ComfyUI/output"
       - "./storage-user/workflows:/root/ComfyUI/user/default/workflows"
     environment:
-      - TZ=${TZ:-Etc/UTC}
-      - LANG=${LOCALE:-en_US.UTF-8}
-      - LC_ALL=${LOCALE:-en_US.UTF-8}
-      - TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST:-8.0 8.6 8.9 9.0 10.0}
       - CLI_ARGS=
     security_opt:
       # - "label=type:nvidia_container_t"

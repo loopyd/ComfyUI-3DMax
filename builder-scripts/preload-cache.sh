@@ -33,12 +33,14 @@ warning() {
 
 gcs() {
     info "Cloning $1..."
-    git clone --quiet --depth=1 --no-tags --recurse-submodules --shallow-submodules "$@" || {
-        warning "Failed to clone $1"
+    git clone --quiet --recurse-submodules "$@" || {
+        error "Failed to clone $1"
+        return 1
     }
+    return 0
 }
 
-download_model_if_missing() {
+download_model() {
     local url="$1"
     local dst="$2"
     local tmp="${dst}.part"
@@ -68,22 +70,23 @@ info "########################################"
 
 mkdir -p /default-comfyui-bundle
 cd /default-comfyui-bundle
-git clone --quiet 'https://github.com/comfyanonymous/ComfyUI.git'
-cd /default-comfyui-bundle/ComfyUI
+gcs 'https://github.com/comfyanonymous/ComfyUI.git'
+cd ./ComfyUI
 # Using stable version (has a release tag)
 git reset --hard "$(git tag | grep -e '^v' | sort -V | tail -1)"
 
-cd /default-comfyui-bundle/ComfyUI/custom_nodes
-gcs https://github.com/Comfy-Org/ComfyUI-Manager.git
-
-# Force ComfyUI-Manager to use PIP instead of UV
-mkdir -p /default-comfyui-bundle/ComfyUI/user/__manager
-
-cat <<EOF > /default-comfyui-bundle/ComfyUI/user/__manager/config.ini
+# Create config.ini to disable UV for ComfyUI-Manager.
+mkdir -p ../user/__manager
+cat <<EOF > ../user/__manager/config.ini
 [default]
 use_uv = False
 security_level = weak
 EOF
+
+cd ./custom_nodes
+
+# Core
+gcs https://github.com/Comfy-Org/ComfyUI-Manager.git
 
 # Performance
 gcs https://github.com/welltop-cn/ComfyUI-TeaCache.git ComfyUI-TeaCache.disabled
@@ -136,7 +139,6 @@ gcs https://github.com/SLAPaper/ComfyUI-Image-Selector.git
 gcs https://github.com/ssitu/ComfyUI_UltimateSDUpscale.git
 gcs https://github.com/MrForExample/ComfyUI-3D-Pack.git
 
-# Hunyuan3D is bundled inside ComfyUI-3D-Pack; no standalone clone required.
 # To be removed in future
 gcs https://github.com/cubiq/ComfyUI_essentials.git
 gcs https://github.com/cubiq/ComfyUI_FaceAnalysis.git
@@ -151,20 +153,18 @@ info "########################################"
 
 export FORCE_CUDA=1
 export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0 10.0"
-python /default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-3D-Pack/install.py || {
-    error "Failed to install 3D Pack. You may want to check and install it manually."
+python ./ComfyUI-3D-Pack/install.py || {
+    error "Failed to install 3D Pack. Please check the output for details."
     exit 1
 }
 
 # Patch 3D-Pack for diffusers import path changes (>=0.35).
 patch_diffusers_controlnet_import() {
     local target_file="$1"
-
     if [ ! -f "${target_file}" ]; then
-        warning "controlnet patch target not found: ${target_file}"
-        return 0
+        error "controlnet patch target not found: ${target_file}"
+        return 1
     fi
-
     info "Ensuring diffusers controlnet compatibility patch in ${target_file}..."
     python - "${target_file}" <<'PY'
 import pathlib
@@ -209,114 +209,71 @@ PY
 
     if python -m py_compile "${target_file}"; then
         success "controlnet compatibility patch validated: ${target_file}"
+        return 0
     else
         error "controlnet patch produced invalid Python syntax: ${target_file}"
-        exit 1
+        return 1
     fi
 }
 
 for f in \
-    /default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-3D-Pack/Gen_3D_Modules/Stable3DGen/stablex/controlnetvae.py \
-    /default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-3D-Pack/Checkpoints/Diffusers/Stable3DGen/stablex/yoso-normal-v1-8-1/controlnet/controlnetvae.py
+    ./ComfyUI-3D-Pack/Gen_3D_Modules/Stable3DGen/stablex/controlnetvae.py \
+    ./ComfyUI-3D-Pack/Checkpoints/Diffusers/Stable3DGen/stablex/yoso-normal-v1-8-1/controlnet/controlnetvae.py
 do
     patch_diffusers_controlnet_import "$f"
 done
 
 # Compile Hunyuan3D modules bundled in ComfyUI-3D-Pack.
-HUNYUAN_PAINT_ROOT="/default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-3D-Pack/Gen_3D_Modules/Hunyuan3D_2_1/hy3dpaint"
+HUNYUAN_PAINT_ROOT="./ComfyUI-3D-Pack/Gen_3D_Modules/Hunyuan3D_2_1/hy3dpaint"
 if [ ! -d "${HUNYUAN_PAINT_ROOT}" ]; then
-    HUNYUAN_PAINT_ROOT="$(find "/default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-3D-Pack" -type d -path "*/Gen_3D_Modules/Hunyuan3D_2_1/hy3dpaint" | head -n1 || true)"
+    HUNYUAN_PAINT_ROOT="$(find "./ComfyUI-3D-Pack" -type d -path "*/Gen_3D_Modules/Hunyuan3D_2_1/hy3dpaint" | head -n1 || true)"
 fi
+info "Located Hunyuan3D paint module at: ${HUNYUAN_PAINT_ROOT}"
 
-RASTER_SETUP="${HUNYUAN_PAINT_ROOT}/custom_rasterizer/setup.py"
-DIFF_RENDER_DIR="${HUNYUAN_PAINT_ROOT}/DifferentiableRenderer"
-DIFF_RENDER_COMPILE="${DIFF_RENDER_DIR}/compile_mesh_painter.sh"
-MESH_INPAINT_WHEEL_SETUP="${HUNYUAN_PAINT_ROOT}/mesh_inpaint_wheel/setup.py"
+info "Compiling bundled Hunyuan3D custom rasterizer from ComfyUI-3D-Pack..."
+cd "${HUNYUAN_PAINT_ROOT}/custom_rasterizer"
+python setup.py install || {
+    error "Failed to compile bundled Hunyuan3D custom_rasterizer"
+    exit 1
+}
+success "Bundled Hunyuan3D custom_rasterizer compiled successfully"
 
-if [ -n "${HUNYUAN_PAINT_ROOT}" ] && [ -f "${RASTER_SETUP}" ]; then
-    export FORCE_CUDA=1
-    export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0 10.0"
+info "Compiling bundled Hunyuan3D DifferentiableRenderer..."
+cd "../DifferentiableRenderer"
+bash -c "./compile_mesh_painter.sh" || {
+    error "Failed to compile DifferentiableRenderer"
+    exit 1
+}
+success "DifferentiableRenderer compiled successfully"
 
-    info "Compiling bundled Hunyuan3D custom rasterizer from ComfyUI-3D-Pack..."
-    cd "$(dirname "${RASTER_SETUP}")"
-    python setup.py install || {
-        error "Failed to compile bundled Hunyuan3D custom rasterizer"
-        exit 1
-    }
-    success "Bundled Hunyuan3D custom rasterizer compiled successfully"
+info "Installing mesh_inpaint_processor wheel package..."
+cd "../mesh_inpaint_wheel"
+python -m pip install --no-cache-dir . || {
+    warning "mesh_inpaint_processor wheel install failed; DifferentiableRenderer may use Python fallback"
+}
+success "mesh_inpaint_processor wheel package installation step finished"
 
-    if [ -f "${DIFF_RENDER_COMPILE}" ]; then
-        info "Compiling bundled Hunyuan3D DifferentiableRenderer mesh_inpaint_processor..."
-        python -m pip install --no-cache-dir pybind11 || {
-            warning "pybind11 install failed; DifferentiableRenderer compile may fail"
-        }
-        cd "${DIFF_RENDER_DIR}"
-        bash ./compile_mesh_painter.sh || {
-            error "Failed to compile DifferentiableRenderer mesh_inpaint_processor"
-            exit 1
-        }
+# Install and patch xatlas for high-poly mesh support.
+info "Installing patched xatlas for high-poly mesh UV unwrapping..."
+cd "/default-comfyui-bundle"
+python -m pip uninstall -y xatlas 2>/dev/null || true
+rm -rf xatlas-python >/dev/null 2>&1 || true
+gcs https://github.com/mworchel/xatlas-python.git || exit $?
+cd "./xatlas-python/extern"
+rm -rf xatlas >/dev/null 2>&1 || true
+gcs https://github.com/jpcy/xatlas.git || exit $?
 
-        if ls "${DIFF_RENDER_DIR}"/mesh_inpaint_processor*.so >/dev/null 2>&1; then
-            success "DifferentiableRenderer compiled extension detected"
-        else
-            warning "DifferentiableRenderer compile finished but no mesh_inpaint_processor*.so was found"
-        fi
-    else
-        warning "DifferentiableRenderer compile script not found: ${DIFF_RENDER_COMPILE}"
-    fi
+# Patch xatlas to disable the fallback for large meshes, which can cause OOM and instability.
+# The patch is idempotent.
+sed -i '6774s|^#if 0$|//#if 0|;6778s|^#endif$|//#endif|' "./xatlas/source/xatlas/xatlas.cpp" || {
+    error "Failed to patch xatlas for high-poly mesh support"
+    exit 1
+}
 
-    if [ -f "${MESH_INPAINT_WHEEL_SETUP}" ]; then
-        info "Installing mesh_inpaint_processor wheel package..."
-        cd "$(dirname "${MESH_INPAINT_WHEEL_SETUP}")"
-        python -m pip install --no-cache-dir . || {
-            warning "mesh_inpaint_processor wheel install failed; DifferentiableRenderer may use Python fallback"
-        }
-    else
-        warning "mesh_inpaint_wheel/setup.py not found; skipping mesh_inpaint_processor package install"
-    fi
-
-    success "Bundled Hunyuan3D modules updated successfully."
-
-    # Install and patch xatlas for high-poly mesh support.
-    info "Installing patched xatlas for high-poly mesh UV unwrapping..."
-    python -m pip uninstall -y xatlas 2>/dev/null || true
-
-    cd /default-comfyui-bundle
-    rm -rf xatlas-python >/dev/null 2>&1 || true
-    git clone --quiet --recursive https://github.com/mworchel/xatlas-python.git || {
-        warning "Failed to clone xatlas-python fork, skipping UV unwrapping patch"
-    }
-
-    if [ -d "/default-comfyui-bundle/xatlas-python/extern" ]; then
-        cd /default-comfyui-bundle/xatlas-python/extern
-
-        rm -rf xatlas
-        git clone --quiet --recursive https://github.com/jpcy/xatlas || {
-            warning "Failed to clone jpcy/xatlas, xatlas-python install may fail"
-        }
-
-        XATLAS_CPP="xatlas/source/xatlas/xatlas.cpp"
-        if [ -f "${XATLAS_CPP}" ]; then
-            info "Applying xatlas high-poly mesh patch (line 6774 and 6778)..."
-            sed -i '6774s|^#if 0$|//#if 0|;6778s|^#endif$|//#endif|' "${XATLAS_CPP}"
-            info "xatlas patch applied successfully"
-        else
-            warning "xatlas.cpp not found, skipping xatlas source patch"
-        fi
-
-        cd /default-comfyui-bundle
-        python -m pip install --no-cache-dir ./xatlas-python || {
-            warning "xatlas-python build may have failed; high-poly UV unwrapping may not work"
-        }
-        success "xatlas-python installation step finished"
-    else
-        warning "xatlas-python extern directory not found, skipping xatlas installation and patch"
-    fi
-
-    success "Bundled Hunyuan3D modules installation completed."
-else
-    warning "Bundled Hunyuan3D custom_rasterizer/setup.py not found under Gen_3D_Modules/Hunyuan3D_2_1/hy3dpaint. InPaint feature may be unavailable."
-fi
+python -m pip install --no-cache-dir /default-comfyui-bundle/xatlas-python || {
+    warning "xatlas-python build may have failed; high-poly UV unwrapping may not work"
+}
+success "xatlas-python patch for high-poly mesh support completed."
 
 info "########################################"
 info "[INFO] Downloading Models..."
@@ -327,17 +284,13 @@ gcs https://github.com/madebyollin/taesd.git
 cp taesd/*.pth .
 rm -rf taesd
 
-ANIMATEDIFF_MODELS_DIR="/default-comfyui-bundle/ComfyUI/models/animatediff_models"
-ANIMATEDIFF_NODE_MODELS_DIR="/default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-AnimateDiff-Evolved/models"
-ANIMATEDIFF_DEFAULT_MODEL="mm_sd_v15_v2.ckpt"
-ANIMATEDIFF_DEFAULT_URL="https://huggingface.co/guoyww/animatediff/resolve/main/${ANIMATEDIFF_DEFAULT_MODEL}"
-
-if download_model_if_missing "${ANIMATEDIFF_DEFAULT_URL}" "${ANIMATEDIFF_MODELS_DIR}/${ANIMATEDIFF_DEFAULT_MODEL}"; then
-    mkdir -p "${ANIMATEDIFF_NODE_MODELS_DIR}"
-    ln -sfn "${ANIMATEDIFF_MODELS_DIR}/${ANIMATEDIFF_DEFAULT_MODEL}" "${ANIMATEDIFF_NODE_MODELS_DIR}/${ANIMATEDIFF_DEFAULT_MODEL}"
+ANIMATEDIFF_MODEL_NAME="mm_sd_v15_v2.ckpt"
+if download_model "https://huggingface.co/guoyww/animatediff/resolve/main/${ANIMATEDIFF_MODEL_NAME}" "/default-comfyui-bundle/ComfyUI/models/animatediff_models/${ANIMATEDIFF_MODEL_NAME}"; then
+    mkdir -p "/default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-AnimateDiff-Evolved/models"
+    ln -sfn "/default-comfyui-bundle/ComfyUI/models/animatediff_models/${ANIMATEDIFF_MODEL_NAME}" "/default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-AnimateDiff-Evolved/models/${ANIMATEDIFF_MODEL_NAME}"
     success "AnimateDiff default motion model installed and linked for ComfyUI-AnimateDiff-Evolved."
 else
-    warning "Failed to download AnimateDiff motion model (${ANIMATEDIFF_DEFAULT_MODEL}). AnimateDiff-Evolved may report missing models."
+    warning "Failed to download AnimateDiff motion model (${ANIMATEDIFF_MODEL_NAME}). AnimateDiff-Evolved may report missing models."
 fi
 
 success "Preload cache completed. ComfyUI bundle is ready at '/default-comfyui-bundle/ComfyUI'."

@@ -1,17 +1,27 @@
 # 3Dmax image for ComfyUI
 
-I wanted 3D-Pack to work on 50 series with SageAttention++ as well so I hacked something together for blackwell.
+I wanted 3D-Pack to work on 50 series.  Well.  So I hacked something together for Blackwell so I can put a $5000 GPU to work.  
+
+I found that 3D Pack is very hard to setup with lots of crazy dependencies.  So I automated it all so it doesn't need to be done twice.
 
 > This is an experimental image that is not gaurenteed to work for everybody. Thus you shouldn't use it in a production environment.
 
-Credit: heavily modified from YanWenKun's cu130-megapak image: https://github.com/YanWenKun/ComfyUI-Docker
+## Whats Improved
+
+From any regular ComfyUI Docker Image found on the net.
+
+- Fix for working Hunyuan3D rasterizer and inpainting support.
+- Custom patching for xatlas to improve high poly mesh stability and results.
+- Addition of working sageattn2++ on blackwell (image builds them from source code rather than getting wheels)
 
 ## Usage
 
-Just run `run.sh` for Docker image build.  Everything is automated.
+Just run '3dmax.sh` to see command-line instructions.  Everything is automated.  If you need help, add the `-h` or `--help` switch to the script.  I try to make this easy to understand.  I am personally tired of AI sloptext, so trying to avoid that in this project!
 
-[[cli-args]]
-## CLI_ARGS Reference
+[[comfy-cli-args]]
+## ComfyUI CLI_ARGS Reference
+
+For your convenience.
 
 [%autowidth,cols=2]
 |===
@@ -97,3 +107,7 @@ https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-c
 |Build options for CMAKE projects using CUDA.
 
 |===
+
+## Credits
+
+Credit: heavily modified from YanWenKun's cu130-megapak image: https://github.com/YanWenKun/ComfyUI-Docker
