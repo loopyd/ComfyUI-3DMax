@@ -56,6 +56,33 @@ export PIP_USER=true
 export PATH="${PATH}:/root/.local/bin"
 # Suppress [WARNING: Running pip as the 'root' user]
 export PIP_ROOT_USER_ACTION=ignore
+# Keep thread and JIT defaults explicit to reduce noisy runtime warnings.
+export NUMEXPR_MAX_THREADS="${NUMEXPR_MAX_THREADS:-16}"
+export NUMBA_THREADING_LAYER="${NUMBA_THREADING_LAYER:-workqueue}"
+export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0 8.6 8.9 9.0 10.0}"
+
+# PyMeshLab workaround for Qt symbol conflicts on some Linux setups.
+# Upstream reports show that prepending pymeshlab's bundled lib directory to
+# LD_LIBRARY_PATH avoids loading incompatible system Qt libraries.
+PYMESHLAB_LIB="$(python3 -m pip show pymeshlab 2>/dev/null | awk -F': ' '/^Location:/{print $2"/pymeshlab/lib"; exit}' || true)"
+if [ -z "${PYMESHLAB_LIB}" ] || [ ! -d "${PYMESHLAB_LIB}" ]; then
+    PYMESHLAB_LIB="$(find /usr/local/lib /usr/lib -type d \( -path '*/python*/dist-packages/pymeshlab/lib' -o -path '*/python*/site-packages/pymeshlab/lib' \) 2>/dev/null | head -n1 || true)"
+fi
+
+if [ -n "${PYMESHLAB_LIB}" ] && [ -d "${PYMESHLAB_LIB}" ]; then
+    # Check if bundled Qt libraries exist
+    if ls "${PYMESHLAB_LIB}"/libQt5*.so* >/dev/null 2>&1; then
+        export LD_LIBRARY_PATH="${PYMESHLAB_LIB}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+        if [ -d "${PYMESHLAB_LIB}/plugins" ]; then
+            export QT_PLUGIN_PATH="${PYMESHLAB_LIB}/plugins${QT_PLUGIN_PATH:+:${QT_PLUGIN_PATH}}"
+        fi
+        echo "[INFO] PyMeshLab Qt workaround enabled: LD_LIBRARY_PATH starts with ${PYMESHLAB_LIB}"
+    else
+        echo "[WARN] PyMeshLab Qt libraries not found in ${PYMESHLAB_LIB}, workaround skipped"
+    fi
+else
+    echo "[WARN] Could not locate pymeshlab lib directory, Qt workaround skipped"
+fi
 
 cd /root
 

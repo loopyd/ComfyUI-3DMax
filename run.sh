@@ -31,6 +31,8 @@ TORCHVISION_VERSION="${TORCHVISION_VERSION:-0.22.0}"
 TORCHAUDIO_VERSION="${TORCHAUDIO_VERSION:-2.7.0}"
 XFORMERS_VERSION="${XFORMERS_VERSION:-0.0.30}"
 GCC_VERSION="${GCC_VERSION:-14}"
+TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0 8.6 8.9 9.0 10.0}"
+IMAGE_NAME="${IMAGE_NAME:-loopyd/comfyui-boot:3dmax}"
 
 error() {
     echo "${C_RED}${C_BOLD}Error:${C_RESET} ${C_RED}$1${C_RESET}" >&2
@@ -116,10 +118,10 @@ docker_build() {
         build_progress_args=(--progress=plain)
     fi
 
-    if docker_image_is_built "yanwk/comfyui-boot:cu128-megapack"; then
-        info "Docker image 'yanwk/comfyui-boot:cu128-megapack' already exists. Skipping build."
+    if docker_image_is_built "${IMAGE_NAME}"; then
+        info "Docker image '${IMAGE_NAME}' already exists. Skipping build."
     else
-        info "Building Docker image 'yanwk/comfyui-boot:cu128-megapack' with plain progress output..."
+        info "Building Docker image '${IMAGE_NAME}' with plain progress output..."
         if DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build \
             "${build_progress_args[@]}" \
             --build-arg TZ="${TZ}" \
@@ -133,7 +135,7 @@ docker_build() {
             --build-arg TORCHAUDIO_VERSION="${TORCHAUDIO_VERSION}" \
             --build-arg XFORMERS_VERSION="${XFORMERS_VERSION}" \
             --build-arg GCC_VERSION="${GCC_VERSION}" \
-            -t yanwk/comfyui-boot:cu128-megapack \
+            -t "${IMAGE_NAME}" \
             -f "${CSCRIPT_DIR}/Dockerfile" \
             "${CSCRIPT_DIR}"; then
             success "Docker image built successfully."
@@ -160,10 +162,11 @@ docker_run() {
         -e TZ="${TZ}" \
         -e LANG="${LOCALE}" \
         -e LC_ALL="${LOCALE}" \
+        -e TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
         -e CLI_ARGS="--disable-xformers --use-pytorch-cross-attention --fast" \
         -e NVIDIA_VISIBLE_DEVICES=all \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
-        yanwk/comfyui-boot:cu128-megapack; then
+        "${IMAGE_NAME}"; then
         error "Failed to run Docker container."
         exit 1
     else
@@ -172,6 +175,6 @@ docker_run() {
 }
 
 prepare_directories
-docker_clean "comfyui" "loopyd/comfyui-boot:cu128-3Dmax"
-docker_build
-#docker_run
+docker_clean "comfyui" "${IMAGE_NAME}"
+docker_build 
+docker_run

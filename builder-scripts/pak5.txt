@@ -13,10 +13,10 @@ color-matcher
 colour-science
 comfy-aimdo
 comfy-kitchen
-comfyui-embedded-docs==0.4.3
-comfyui-frontend-package==1.39.19
-comfyui-workflow-templates==0.9.10
-cumm==0.7.11
+comfyui-embedded-docs
+comfyui-frontend-package
+comfyui-workflow-templates
+cumm
 decord
 deepdiff
 diffusers 
@@ -36,7 +36,6 @@ igraph
 imageio
 imageio-ffmpeg
 importlib-metadata
-insightface==0.7.3
 iopath
 jaxtyping
 jetson-stats
@@ -51,9 +50,8 @@ ninja
 numba
 numexpr
 numpy
-numpy==1.26.4
-numpy<2
 onnxruntime
+onnxruntime-gpu
 open3d
 open-clip-torch
 opencv-python-headless[ffmpeg]

@@ -110,7 +110,9 @@ ENV PATH="${PATH}:/usr/local/cuda/bin" \
     LIBRARY_PATH="/usr/local/cuda/lib64/stubs:/usr/local/cuda/targets/x86_64-linux/lib" \
     CPATH="/usr/local/cuda/include:/usr/local/cuda/targets/x86_64-linux/include" \
     CPLUS_INCLUDE_PATH="/usr/local/cuda/include:/usr/local/cuda/targets/x86_64-linux/include" \
-    CUDA_HOME="/usr/local/cuda"
+    CUDA_HOME="/usr/local/cuda" \
+    FORCE_CUDA=1 \
+    TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0 10.0"
 
 ################################################################################
 # Python and tools
@@ -130,6 +132,13 @@ python3-opencv \
 libgl1 \
 libglib2.0-0 \
 libgomp1 \
+qt5-qmake \
+qtbase5-dev \
+libqt5core5t64 \
+libqt5gui5t64 \
+libqt5widgets5t64 \
+libqt5xml5t64 \
+libqt5opengl5t64 \
     && ln -sf "/usr/bin/python${PY_VER_DOT}" /usr/bin/python3 \
     && ln -sf "/usr/bin/python${PY_VER_DOT}" /usr/bin/python \
     && rm -f /usr/lib/python${PY_VER_DOT}/EXTERNALLY-MANAGED
@@ -155,8 +164,7 @@ xz-utils \
 wget \
 curl \
 fonts-noto-core \
-fonts-noto-cjk \
-fonts-noto-color-emoji
+fonts-noto-cjk
 
 # FFmpeg from BtbN
 RUN --mount=type=cache,target=/tmp/ffmpeg_download \
@@ -284,13 +292,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         -e . --no-deps --no-build-isolation \
     && cd /
 
-# Update uv to latest.
-RUN --mount=type=cache,target=/root/.cache/pip \
-    . /etc/cuda-version.env \
-    && . /etc/python-version.env \
-    && . /etc/torch-version.env \
-    && pip install -U uv
-
 # Updated nunchaku wheel with support for PyTorch 2.7 and CUDA 12.8.
 RUN --mount=type=cache,target=/root/.cache/pip \
     . /etc/python-version.env \
@@ -318,17 +319,14 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 WORKDIR /default-comfyui-bundle
 
-RUN bash /builder-scripts/preload-cache.sh
+RUN --mount=type=cache,target=/root/.cache/pip \
+    bash /builder-scripts/preload-cache.sh
 
 # Install deps (comfyui-frontend-package, etc) pair to the preloaded ComfyUI version
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install \
         -r '/default-comfyui-bundle/ComfyUI/requirements.txt' \
         -r '/default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt'
-
-# Run 3D install.py for 3D nodes
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python /default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-3D-Pack/install.py
 
 ################################################################################
 
