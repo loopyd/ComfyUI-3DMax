@@ -82,8 +82,9 @@ https://github.com/chflame163/ComfyUI_LayerStyle/raw/refs/heads/main/requirement
 https://github.com/chflame163/ComfyUI_LayerStyle/raw/refs/heads/main/repair_dependency_list.txt
 #https://github.com/chflame163/ComfyUI_LayerStyle_Advance/raw/refs/heads/main/requirements.txt
 #https://github.com/chflame163/ComfyUI_LayerStyle_Advance/raw/refs/heads/main/repair_dependency_list.txt
-# 3D
+# 3DMax
 https://github.com/MrForExample/ComfyUI-3D-Pack/raw/refs/heads/main/requirements.txt
+#https://github.com/lrzjason/ComfyUI-EditUtils - doesn't have any extra requirements.
 )
 
 for line in "${array[@]}";do
@@ -93,11 +94,12 @@ for line in "${array[@]}";do
     fi
 done
 
-sed -i '/^#/d' pak5.txt
-sed -i 's/[[:space:]]*$//' pak5.txt
-sed -i 's/>=.*$//' pak5.txt
-sed -i 's/[[:space:]]*;.*$//' pak5.txt
-sed -i 's/_/-/g' pak5.txt
+sed -i \
+    -e '/^#/d' \
+    -e 's/[[:space:]]*$//' \
+    -e 's/[[:space:]]*;.*$//' \
+    -e 's/\(<=\|==\|>=\).*$//' \
+    -e 's/_/-/g' pak5.txt
 
 # Don't "sort foo.txt >foo.txt". See: https://stackoverflow.com/a/29244408
 sort -ufo pak5.txt pak5.txt

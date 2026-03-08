@@ -320,7 +320,19 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 WORKDIR /default-comfyui-bundle
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    bash /builder-scripts/preload-cache.sh
+    bash /builder-scripts/install-comfyui.sh
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    bash /builder-scripts/download-nodes.sh
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    bash /builder-scripts/install-3dpack.sh
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    bash /builder-scripts/apply-patches.sh
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    bash /builder-scripts/download-models.sh
 
 # Install deps (comfyui-frontend-package, etc) pair to the preloaded ComfyUI version
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -329,12 +341,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         -r '/default-comfyui-bundle/ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt'
 
 ################################################################################
+# Image cleanup and finalization
 
-# Clean cache to avoid GitHub Actions "No space left on device"
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ "${USING_GITHUB_ACTIONS}" = "true" ]; then \
         rm -rf /root/.cache/pip/* ; \
-    fi
+    fi; \
+    apt-get clean && rm -rf /var/lib/apt/lists/*; \
+    rm -rf /tmp/* /var/tmp/* && find /var/log -type f -delete; \
+    find /usr/local/lib/python${PY_VER_DOT} \( -type d -name '__pycache__' -exec rm -rf {} + \) -o \( -type f -name '*.pyc' -delete \) -o \( -type f -name '*.pyo' -delete \)
 
 # RUN du -ah /root \
 #     && rm -rfv /root/* \
